@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env.prod
+      - .env.local
+
+  backend:
+    env_file:
+      - .env.prod
+      - .env.local
+
+  frontend:
+    env_file:
+      - .env.prod
+

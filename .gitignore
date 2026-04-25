@@ -1,0 +1,14 @@
+.env.local
+.env
+.DS_Store
+node_modules
+backend/node_modules
+frontend/node_modules
+backend/.npm
+frontend/.npm
+dist
+coverage
+*.log
+docker-data
+.codex
+
