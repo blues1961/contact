@@ -1,16 +1,104 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: con-db-prod
+    restart: unless-stopped
     env_file:
       - .env.prod
       - .env.local
+    volumes:
+      - con_prod_pgdata:/var/lib/postgresql/data
+    ports:
+      - "${PROD_DB_BIND:-127.0.0.1}:${PROD_DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h localhost -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - appnet
 
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: con-backend-prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - .env.prod
       - .env.local
+    expose:
+      - "8000"
+    ports:
+      - "${PROD_API_BIND:-127.0.0.1}:${PROD_API_PORT:-8000}:8000"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "edge"
+      traefik.http.middlewares.con-redirect-https.redirectscheme.scheme: "https"
+
+      traefik.http.routers.con-api-http.rule: "Host(`${APP_HOST}`) && PathPrefix(`/api/`)"
+      traefik.http.routers.con-api-http.entrypoints: "web"
+      traefik.http.routers.con-api-http.middlewares: "con-redirect-https"
+      traefik.http.routers.con-api-http.priority: "1000"
+      traefik.http.routers.con-api-http.service: "con-api"
+
+      traefik.http.routers.con-api.rule: "Host(`${APP_HOST}`) && PathPrefix(`/api/`)"
+      traefik.http.routers.con-api.entrypoints: "websecure"
+      traefik.http.routers.con-api.tls: "true"
+      traefik.http.routers.con-api.tls.certresolver: "le"
+      traefik.http.routers.con-api.priority: "1000"
+      traefik.http.routers.con-api.service: "con-api"
+
+      traefik.http.services.con-api.loadbalancer.server.port: "8000"
+    networks:
+      - appnet
+      - edge
 
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE: ${VITE_API_BASE}
+        VITE_APP_SLUG: ${APP_SLUG}
+    container_name: con-frontend-prod
+    restart: unless-stopped
+    depends_on:
+      - backend
     env_file:
       - .env.prod
+    expose:
+      - "80"
+    ports:
+      - "${PROD_FRONT_BIND:-127.0.0.1}:${PROD_FRONT_PORT:-8080}:80"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "edge"
+      traefik.http.routers.con-front-http.rule: "Host(`${APP_HOST}`) && !PathPrefix(`/api/`)"
+      traefik.http.routers.con-front-http.entrypoints: "web"
+      traefik.http.routers.con-front-http.middlewares: "con-redirect-https@docker"
+      traefik.http.routers.con-front-http.priority: "1"
+
+      traefik.http.routers.con-front.rule: "Host(`${APP_HOST}`) && !PathPrefix(`/api/`)"
+      traefik.http.routers.con-front.entrypoints: "websecure"
+      traefik.http.routers.con-front.tls: "true"
+      traefik.http.routers.con-front.tls.certresolver: "le"
+      traefik.http.routers.con-front.priority: "1"
+
+      traefik.http.services.con-front.loadbalancer.server.port: "80"
+    networks:
+      - edge
+
+volumes:
+  con_prod_pgdata:
+    external: true
+
+networks:
+  appnet:
+    driver: bridge
+  edge:
+    external: true
 
