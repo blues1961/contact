@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import ThemeToggle from "./components/ThemeToggle";
 import { apiRequest, clearToken, getToken, setToken } from "./utils/api";
 import { decryptPrivateContact, encryptPrivateContact } from "./utils/cryptoContacts";
+
+const APP_NAME = "Contacts";
+const THEME_KEY = "con.theme";
 
 const emptyDraft = () => ({
   title: "",
@@ -51,11 +55,24 @@ function displayTitle(contact) {
   return contact.title || contact.organization || contact.email || "Sans titre";
 }
 
+function getInitialTheme() {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  const saved = window.localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") {
+    return saved;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 function ProtectedRoute({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
 }
 
-function LoginPage() {
+function LoginPage({ theme, onThemeChange }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,39 +100,51 @@ function LoginPage() {
   }
 
   return (
-    <main className="login-shell">
-      <section className="login-card">
-        <div className="eyebrow">con / contacts</div>
-        <h1>Connexion</h1>
-        <p>
-          Contacts publics en clair, contacts prives chiffres cote navigateur. Le token JWT est stocke
-          dans <code>localStorage</code> sous <code>con.jwt</code>.
-        </p>
-        <form onSubmit={handleSubmit} className="stack">
-          <label>
+    <div className="page login-page">
+      <main className="login-card">
+        <div className="login-head">
+          <div className="eyebrow">con / contacts</div>
+          <h1 className="login-title">{APP_NAME}</h1>
+          <p className="login-sub">Connexion au carnet public et au coffre prive.</p>
+          <ThemeToggle theme={theme} onChange={onThemeChange} className="login-theme-toggle" />
+        </div>
+        <form onSubmit={handleSubmit} className="login-form">
+          <label className="login-label">
             <span>Email ou username</span>
-            <input value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <input
+              className="input"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              placeholder="Identifiant"
+            />
           </label>
-          <label>
+          <label className="login-label">
             <span>Mot de passe</span>
             <input
+              className="input"
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              placeholder="Mot de passe"
               required
             />
           </label>
-          {error ? <div className="banner error">{error}</div> : null}
-          <button type="submit" disabled={submitting}>
+          {error ? <p className="error">{error}</p> : null}
+          <button type="submit" className="btn btn--light" disabled={submitting}>
             {submitting ? "Connexion..." : "Entrer"}
           </button>
         </form>
-      </section>
-    </main>
+        <p className="login-note">
+          JWT dans <code>localStorage</code> sous <code>con.jwt</code>. Les contacts prives sont chiffres
+          uniquement dans le navigateur.
+        </p>
+      </main>
+    </div>
   );
 }
 
-function ContactsPage() {
+function ContactsPage({ theme, onThemeChange }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [publicContacts, setPublicContacts] = useState([]);
@@ -428,21 +457,26 @@ function ContactsPage() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <div className="eyebrow">con / carnet de contacts</div>
-          <h1>Contacts</h1>
-        </div>
-        <div className="topbar-actions">
-          <div className="user-badge">{user ? `${user.username} · ${user.email}` : "Chargement..."}</div>
-          <button className="button-secondary" onClick={logout}>
-            Deconnexion
-          </button>
+        <div className="topbar__inner">
+          <div className="brand">
+            <div>
+              <div className="eyebrow">con / carnet de contacts</div>
+              <div className="brand__name">{APP_NAME}</div>
+            </div>
+          </div>
+          <div className="topbar__right row">
+            <ThemeToggle theme={theme} onChange={onThemeChange} />
+            <div className="user-badge">{user ? `${user.username} · ${user.email}` : "Chargement..."}</div>
+            <button className="btn btn--light" onClick={logout}>
+              Deconnexion
+            </button>
+          </div>
         </div>
       </header>
 
-      {flash ? <div className="toast">{flash}</div> : null}
-
-      <section className="workspace">
+      <section className="container">
+        {flash ? <div className="toast">{flash}</div> : null}
+        <section className="workspace">
         <aside className="sidebar">
           <div className="segment">
             <button
@@ -677,20 +711,28 @@ function ContactsPage() {
             </form>
           )}
         </section>
+        </section>
       </section>
     </main>
   );
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<LoginPage theme={theme} onThemeChange={setTheme} />} />
       <Route
         path="*"
         element={
           <ProtectedRoute>
-            <ContactsPage />
+            <ContactsPage theme={theme} onThemeChange={setTheme} />
           </ProtectedRoute>
         }
       />
