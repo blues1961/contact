@@ -235,10 +235,10 @@ function ContactsPage() {
   });
 
   const selectedId = selectedIds[activeScope];
-  const selectedContact =
-    activeScope === "public"
-      ? publicContacts.find((contact) => contact.id === selectedId) || null
-      : enrichedPrivateContacts.find((contact) => contact.id === selectedId) || null;
+  const selectedPublicContact = publicContacts.find((contact) => contact.id === selectedId) || null;
+  const selectedPrivateContact = privateContacts.find((contact) => contact.id === selectedId) || null;
+  const selectedPrivateDecrypted = privatePlaintext[selectedId] || null;
+  const selectedContact = activeScope === "public" ? selectedPublicContact : selectedPrivateContact;
 
   useEffect(() => {
     if (selectedId === "new") {
@@ -247,17 +247,17 @@ function ContactsPage() {
     }
 
     if (activeScope === "public") {
-      setDraft(contactToDraft(selectedContact));
+      setDraft(contactToDraft(selectedPublicContact));
       return;
     }
 
-    if (vaultSecret && selectedContact?.decrypted) {
-      setDraft(contactToDraft(selectedContact.decrypted));
+    if (vaultSecret && selectedPrivateDecrypted) {
+      setDraft(contactToDraft(selectedPrivateDecrypted));
       return;
     }
 
     setDraft(emptyDraft());
-  }, [activeScope, selectedId, selectedContact, vaultSecret]);
+  }, [activeScope, selectedId, selectedPublicContact, selectedPrivateDecrypted, vaultSecret]);
 
   function selectContact(scope, contactId) {
     setSelectedIds((current) => ({ ...current, [scope]: contactId }));
@@ -402,8 +402,8 @@ function ContactsPage() {
   const currentTitle =
     activeScope === "public"
       ? displayTitle(selectedContact || draftToPayload(draft))
-      : selectedContact?.decrypted
-        ? displayTitle(selectedContact.decrypted)
+      : selectedPrivateDecrypted
+        ? displayTitle(selectedPrivateDecrypted)
         : selectedId === "new"
           ? "Nouveau contact prive"
           : "Contact prive verrouille";
@@ -479,15 +479,19 @@ function ContactsPage() {
               const title =
                 activeScope === "public"
                   ? displayTitle(contact)
-                  : contact.decrypted
-                    ? displayTitle(contact.decrypted)
+                  : privatePlaintext[contact.id]
+                    ? displayTitle(privatePlaintext[contact.id])
                     : "Contact prive verrouille";
 
               const meta =
                 activeScope === "public"
                   ? [contact.organization, contact.phone, contact.email].filter(Boolean).join(" · ")
-                  : contact.decrypted
-                    ? [contact.decrypted.organization, contact.decrypted.phone, contact.decrypted.email]
+                  : privatePlaintext[contact.id]
+                    ? [
+                        privatePlaintext[contact.id].organization,
+                        privatePlaintext[contact.id].phone,
+                        privatePlaintext[contact.id].email
+                      ]
                         .filter(Boolean)
                         .join(" · ")
                     : new Date(contact.updated_at).toLocaleString("fr-CA");
@@ -638,4 +642,3 @@ export default function App() {
     </Routes>
   );
 }
-
