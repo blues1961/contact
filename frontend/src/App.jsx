@@ -182,37 +182,39 @@ function ContactsPage() {
     return () => window.clearTimeout(timer);
   }, [flash]);
 
-  const sourceContacts = activeScope === "public" ? publicContacts : privateContacts;
   const enrichedPrivateContacts = privateContacts.map((contact) => ({
     ...contact,
     decrypted: privatePlaintext[contact.id] || null
   }));
-  const listContacts = activeScope === "public" ? publicContacts : enrichedPrivateContacts;
+  const combinedContacts = [
+    ...publicContacts.map((contact) => ({ ...contact, scope: "public" })),
+    ...enrichedPrivateContacts.map((contact) => ({ ...contact, scope: "private" }))
+  ].sort((left, right) => new Date(right.updated_at) - new Date(left.updated_at));
   const allTags = [...new Set(publicContacts.flatMap((contact) => contact.tags || []))].sort((left, right) =>
     left.localeCompare(right)
   );
   const normalizedSearch = search.trim().toLowerCase();
 
-  const filteredContacts = listContacts.filter((contact) => {
-    if (activeScope === "public") {
-      const haystack = [
-        contact.title,
-        contact.organization,
-        contact.phone,
-        contact.email,
-        contact.address,
-        contact.website,
-        contact.notes,
-        ...(contact.tags || [])
-      ]
-        .join(" ")
-        .toLowerCase();
+  function matchesPublicContact(contact) {
+    const haystack = [
+      contact.title,
+      contact.organization,
+      contact.phone,
+      contact.email,
+      contact.address,
+      contact.website,
+      contact.notes,
+      ...(contact.tags || [])
+    ]
+      .join(" ")
+      .toLowerCase();
 
-      const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
-      const matchesTag = !tagFilter || (contact.tags || []).includes(tagFilter);
-      return matchesSearch && matchesTag;
-    }
+    const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
+    const matchesTag = !tagFilter || (contact.tags || []).includes(tagFilter);
+    return matchesSearch && matchesTag;
+  }
 
+  function matchesPrivateContact(contact) {
     if (!vaultSecret) {
       return true;
     }
@@ -232,9 +234,18 @@ function ContactsPage() {
       .toLowerCase();
 
     return !normalizedSearch || haystack.includes(normalizedSearch);
-  });
+  }
 
-  const selectedId = selectedIds[activeScope];
+  const filteredContacts =
+    activeScope === "all"
+      ? combinedContacts.filter((contact) =>
+          contact.scope === "public" ? matchesPublicContact(contact) : matchesPrivateContact(contact)
+        )
+      : activeScope === "public"
+        ? publicContacts.filter(matchesPublicContact)
+        : enrichedPrivateContacts.filter(matchesPrivateContact);
+
+  const selectedId = activeScope === "all" ? null : selectedIds[activeScope];
   const selectedPublicContact = publicContacts.find((contact) => contact.id === selectedId) || null;
   const selectedPrivateContact = privateContacts.find((contact) => contact.id === selectedId) || null;
   const selectedPrivateDecrypted = privatePlaintext[selectedId] || null;
@@ -243,6 +254,10 @@ function ContactsPage() {
   useEffect(() => {
     if (selectedId === "new") {
       setDraft(emptyDraft());
+      return;
+    }
+
+    if (activeScope === "all") {
       return;
     }
 
@@ -400,7 +415,9 @@ function ContactsPage() {
 
   const showPrivatePrompt = activeScope === "private" && !vaultSecret;
   const currentTitle =
-    activeScope === "public"
+    activeScope === "all"
+      ? "Vue mixte"
+      : activeScope === "public"
       ? displayTitle(selectedContact || draftToPayload(draft))
       : selectedPrivateDecrypted
         ? displayTitle(selectedPrivateDecrypted)
@@ -429,6 +446,12 @@ function ContactsPage() {
         <aside className="sidebar">
           <div className="segment">
             <button
+              className={activeScope === "all" ? "segment-active" : ""}
+              onClick={() => setActiveScope("all")}
+            >
+              Tous
+            </button>
+            <button
               className={activeScope === "public" ? "segment-active" : ""}
               onClick={() => setActiveScope("public")}
             >
@@ -447,14 +470,20 @@ function ContactsPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={activeScope === "public" ? "Nom, tag, email..." : "Apres deverrouillage"}
+              placeholder={
+                activeScope === "private"
+                  ? "Apres deverrouillage"
+                  : activeScope === "all"
+                    ? "Publics et prives"
+                    : "Nom, tag, email..."
+              }
             />
           </label>
 
           {activeScope === "public" ? (
             <div className="tag-cloud">
               <button className={!tagFilter ? "tag-active" : ""} onClick={() => setTagFilter("")}>
-                Tous
+                Sans filtre
               </button>
               {allTags.map((tag) => (
                 <button
@@ -468,23 +497,35 @@ function ContactsPage() {
             </div>
           ) : null}
 
-          <button className="button-primary fullwidth" onClick={() => startNew(activeScope)}>
-            {activeScope === "public" ? "Nouveau contact public" : "Nouveau contact prive"}
-          </button>
+          {activeScope === "all" ? (
+            <div className="form-grid">
+              <button className="button-primary fullwidth" onClick={() => startNew("public")}>
+                Nouveau public
+              </button>
+              <button className="button-secondary fullwidth" onClick={() => startNew("private")}>
+                Nouveau prive
+              </button>
+            </div>
+          ) : (
+            <button className="button-primary fullwidth" onClick={() => startNew(activeScope)}>
+              {activeScope === "public" ? "Nouveau contact public" : "Nouveau contact prive"}
+            </button>
+          )}
 
           <div className="list">
             {loading ? <div className="muted">Chargement...</div> : null}
             {!loading && filteredContacts.length === 0 ? <div className="muted">Aucun contact.</div> : null}
             {filteredContacts.map((contact) => {
+              const contactScope = contact.scope || activeScope;
               const title =
-                activeScope === "public"
+                contactScope === "public"
                   ? displayTitle(contact)
                   : privatePlaintext[contact.id]
                     ? displayTitle(privatePlaintext[contact.id])
                     : "Contact prive verrouille";
 
               const meta =
-                activeScope === "public"
+                contactScope === "public"
                   ? [contact.organization, contact.phone, contact.email].filter(Boolean).join(" · ")
                   : privatePlaintext[contact.id]
                     ? [
@@ -499,9 +540,10 @@ function ContactsPage() {
               return (
                 <button
                   key={contact.id}
-                  className={selectedId === contact.id ? "list-item active" : "list-item"}
-                  onClick={() => selectContact(activeScope, contact.id)}
+                  className={selectedId === contact.id && activeScope === contactScope ? "list-item active" : "list-item"}
+                  onClick={() => selectContact(contactScope, contact.id)}
                 >
+                  <em className="item-scope">{contactScope === "public" ? "Public" : "Prive"}</em>
                   <strong>{title}</strong>
                   <span>{meta || "Aucune metadonnee visible"}</span>
                 </button>
@@ -513,14 +555,22 @@ function ContactsPage() {
         <section className="detail-panel">
           <div className="detail-header">
             <div>
-              <div className="eyebrow">{activeScope === "public" ? "espace public" : "coffre prive"}</div>
+              <div className="eyebrow">
+                {activeScope === "all"
+                  ? "vue agregee"
+                  : activeScope === "public"
+                    ? "espace public"
+                    : "coffre prive"}
+              </div>
               <h2>{currentTitle}</h2>
             </div>
-            <div className="detail-actions">
-              <button className="button-secondary" onClick={handleDelete}>
-                {selectedId === "new" ? "Vider" : "Supprimer"}
-              </button>
-            </div>
+            {activeScope === "all" ? null : (
+              <div className="detail-actions">
+                <button className="button-secondary" onClick={handleDelete}>
+                  {selectedId === "new" ? "Vider" : "Supprimer"}
+                </button>
+              </div>
+            )}
           </div>
 
           {activeScope === "private" ? (
@@ -541,7 +591,12 @@ function ContactsPage() {
             </div>
           ) : null}
 
-          {showPrivatePrompt ? (
+          {activeScope === "all" ? (
+            <div className="locked-card">
+              <p>La liste combine les contacts publics et prives.</p>
+              <p>Clique un element pour ouvrir sa fiche dans son espace dedie.</p>
+            </div>
+          ) : showPrivatePrompt ? (
             <div className="locked-card">
               <p>
                 Les contacts prives sont chiffrés cote frontend avec AES-GCM. Le backend stocke uniquement
