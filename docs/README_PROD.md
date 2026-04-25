@@ -45,6 +45,14 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f frontend
 ```
 
+Equivalent via `Makefile` avec `.env -> .env.prod` :
+
+```bash
+ln -snf .env.prod .env
+make up
+make ps
+```
+
 ## Routage Traefik
 - `https://APP_HOST/` -> frontend
 - `https://APP_HOST/api/...` -> backend
@@ -61,3 +69,4 @@ curl https://APP_HOST/api/health
 - Le chiffrement des contacts prives reste cote navigateur. Le serveur ne voit toujours que `ciphertext`, `iv`, `salt`, `crypto_version`.
 - Pour utiliser WebCrypto sur telephone, il faut bien ouvrir l'application via `https://APP_HOST`.
 - Le compose prod de `contact` suit le meme principe de labels Traefik et reseau `edge` que `gestionnaireMDP`.
+- Le `Makefile` choisit automatiquement `docker-compose.dev.yml` ou `docker-compose.prod.yml` en fonction du symlink `.env`.

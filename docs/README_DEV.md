@@ -20,6 +20,13 @@ Commande unique :
 docker compose -f docker-compose.dev.yml --env-file .env.dev up -d --build
 ```
 
+Equivalent via `Makefile` avec `.env -> .env.dev` :
+
+```bash
+ln -snf .env.dev .env
+make up
+```
+
 Diagnostics utiles :
 
 ```bash
@@ -27,6 +34,17 @@ docker compose -f docker-compose.dev.yml --env-file .env.dev ps
 docker compose -f docker-compose.dev.yml --env-file .env.dev logs -f db
 docker compose -f docker-compose.dev.yml --env-file .env.dev logs -f backend
 docker compose -f docker-compose.dev.yml --env-file .env.dev logs -f frontend
+```
+
+Equivalents `make` :
+
+```bash
+make ps
+make logs-db
+make logs-backend
+make logs-frontend
+make restart
+make rebuild
 ```
 
 URLs attendues :
@@ -51,4 +69,4 @@ URLs attendues :
 - Le backend ecoute dans le conteneur sur `8000`, expose sur l'hote via `8005`.
 - Vite ecoute sur `5177` et proxy `/api` vers `http://backend:8000`.
 - Les contacts prives ne sont pas recherchables cote serveur, car le backend ne detient pas les donnees en clair.
-
+- Le `Makefile` detecte l'environnement courant a partir du symlink `.env`.
