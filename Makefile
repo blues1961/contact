@@ -8,8 +8,8 @@ ENV_FILE := .env.$(APP_ENV)
 COMPOSE_FILE := docker-compose.$(APP_ENV).yml
 COMPOSE := docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE)
 
-.PHONY: help env env-check env-check-base env-check-local set-dev set-prod \
-	up down stop start restart rebuild build ps logs logs-db logs-backend logs-frontend \
+.PHONY: help env env-check env-check-base env-check-local prod-prepare-docker \
+	set-dev set-prod up down stop start restart rebuild build ps logs logs-db logs-backend logs-frontend \
 	exec-db exec-backend exec-frontend config
 
 help: ## Liste les commandes disponibles
@@ -35,6 +35,12 @@ env-check-local: ## Verifie la presence des secrets locaux (.env.local)
 
 env-check: env-check-base env-check-local ## Verifie env + secrets locaux
 
+prod-prepare-docker: env-check ## Cree les ressources Docker externes requises en prod
+	if [ "$(APP_ENV)" = "prod" ]; then \
+		docker volume inspect con_prod_pgdata >/dev/null 2>&1 || docker volume create con_prod_pgdata >/dev/null; \
+		docker network inspect edge >/dev/null 2>&1 || docker network create edge >/dev/null; \
+	fi
+
 set-dev: ## Pointe .env vers .env.dev
 	ln -snf .env.dev .env
 	@echo ".env -> .env.dev"
@@ -43,7 +49,7 @@ set-prod: ## Pointe .env vers .env.prod
 	ln -snf .env.prod .env
 	@echo ".env -> .env.prod"
 
-up: env-check ## Demarre les conteneurs de l'environnement courant
+up: prod-prepare-docker ## Demarre les conteneurs de l'environnement courant
 	$(COMPOSE) up -d --build
 
 down: env-check ## Arrete et supprime les conteneurs de l'environnement courant
@@ -61,7 +67,7 @@ restart: env-check ## Redemarre les conteneurs
 build: env-check ## Build les images de l'environnement courant
 	$(COMPOSE) build
 
-rebuild: env-check ## Rebuild les images sans cache puis relance l'environnement
+rebuild: prod-prepare-docker ## Rebuild les images sans cache puis relance l'environnement
 	$(COMPOSE) build --no-cache
 	$(COMPOSE) up -d --build
 
@@ -91,4 +97,3 @@ exec-frontend: env-check ## Ouvre un shell dans le conteneur frontend
 
 config: env-check ## Affiche la configuration Docker Compose resolue
 	$(COMPOSE) config
-

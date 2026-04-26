@@ -37,6 +37,8 @@ docker network create edge
 
 Si Traefik existe deja, le reseau `edge` existe probablement deja. La creation retournera une erreur benigne si tu la relances par habitude.
 
+Avec le `Makefile`, `make up` et `make rebuild` recreent automatiquement `con_prod_pgdata` et `edge` s'ils sont absents. La preparation manuelle ci-dessus reste utile pour verifier explicitement les prerequis serveur.
+
 ## Demarrage prod
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
