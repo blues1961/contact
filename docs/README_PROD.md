@@ -17,7 +17,8 @@ Deployer `contact` sur un serveur Linux avec Docker Compose et un reverse proxy 
 ## Variables a ajuster
 Dans `.env.prod` :
 - `APP_HOST=contact.example.com` -> remplacer par le vrai domaine
-- `PROD_DB_PORT`, `PROD_API_PORT`, `PROD_FRONT_PORT` seulement si tu veux aussi un acces local par ports binds
+- `PROD_DB_PORT=5436`, `PROD_API_PORT=8005`, `PROD_FRONT_PORT=8083` sont derives de `APP_NO=4`
+- ces ports restent des binds loopback de debug/local; l'entree publique passe par Traefik
 
 Dans `.env.local` :
 - `POSTGRES_PASSWORD`

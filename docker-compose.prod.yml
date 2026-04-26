@@ -73,7 +73,7 @@ services:
     expose:
       - "80"
     ports:
-      - "${PROD_FRONT_BIND:-127.0.0.1}:${PROD_FRONT_PORT:-8080}:80"
+      - "${PROD_FRONT_BIND:-127.0.0.1}:${PROD_FRONT_PORT:-8083}:80"
     labels:
       traefik.enable: "true"
       traefik.docker.network: "edge"
@@ -101,4 +101,3 @@ networks:
     driver: bridge
   edge:
     external: true
-
